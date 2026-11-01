@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Store Support Assistant</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --panel-2: #f8fafb;
+      --ink: #15202b;
+      --muted: #5f6d78;
+      --faint: #8a97a1;
+      --line: #e1e7ec;
+      --accent: #0f766e;
+      --accent-ink: #ffffff;
+      --accent-soft: #e6f4f2;
+      --you: #15202b;
+      --you-ink: #f5f8fa;
+      --warn: #92400e;
+      --warn-soft: #fef3e2;
+      --warn-line: #f5d6a8;
+      --shadow: 0 1px 2px rgba(21, 32, 43, 0.05), 0 8px 24px rgba(21, 32, 43, 0.06);
+      /* status colors */
+      --s-placed: #475569;   --s-placed-bg: #eef2f6;
+      --s-packed: #6d28d9;   --s-packed-bg: #f1ebfd;
+      --s-shipped: #1d4ed8;  --s-shipped-bg: #e8effd;
+      --s-delivered: #047857; --s-delivered-bg: #e3f5ee;
+      --s-cancelled: #b91c1c; --s-cancelled-bg: #fdecec;
+      --late: #b45309; --late-bg: #fef1df;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1418;
+        --panel: #161d22;
+        --panel-2: #1b242a;
+        --ink: #e6ecf0;
+        --muted: #9aa8b2;
+        --faint: #74838d;
+        --line: #26323a;
+        --accent: #2bb3a3;
+        --accent-ink: #062320;
+        --accent-soft: #123430;
+        --you: #2a3740;
+        --you-ink: #eef3f6;
+        --warn: #f5c27a;
+        --warn-soft: #2b2114;
+        --warn-line: #4a3820;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+        --s-placed: #b6c2cd;   --s-placed-bg: #24303a;
+        --s-packed: #c4b0fb;   --s-packed-bg: #2a2340;
+        --s-shipped: #9dbbfb;  --s-shipped-bg: #1c2a45;
+        --s-delivered: #6fd6ae; --s-delivered-bg: #143229;
+        --s-cancelled: #f6a3a3; --s-cancelled-bg: #3a1c1c;
+        --late: #f5c27a; --late-bg: #3a2a14;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+    button { font: inherit; color: inherit; }
+    svg { flex: none; }
+
+    /* ---------- Top bar ---------- */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      flex: none;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .logo {
+      width: 34px; height: 34px; border-radius: 10px;
+      display: grid; place-items: center;
+      background: var(--accent); color: var(--accent-ink);
+    }
+    .brand h1 { margin: 0; font-size: 16px; line-height: 1.2; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .brand > div:last-child { min-width: 0; }
+    .brand p { margin: 0; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .spacer { flex: 1; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 9px;
+      padding: 7px 12px;
+      font-size: 13.5px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--panel-2); }
+    .btn:focus-visible, .chip:focus-visible, .order:focus-visible, .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .mode {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 12.5px; font-weight: 600;
+      padding: 5px 10px; border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      cursor: help;
+      white-space: nowrap;
+    }
+    .mode .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+    .mode.ai .dot { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); }
+    .only-mobile { display: none !important; }
+
+    /* ---------- Layout ---------- */
+    .layout {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+    }
+
+    /* ---------- Sidebar ---------- */
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .side-head { padding: 16px 16px 0; }
+    .side-head h2 { margin: 0; font-size: 14px; }
+    .side-head p { margin: 4px 0 12px; font-size: 12.5px; color: var(--muted); }
+    .tabs { display: flex; gap: 4px; padding: 3px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; }
+    .tab {
+      flex: 1; border: 0; background: transparent; border-radius: 7px;
+      padding: 6px 4px; font-size: 13px; cursor: pointer; color: var(--muted);
+    }
+    .tab[aria-selected="true"] { background: var(--panel); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .tab .count { font-weight: 500; color: var(--faint); margin-left: 2px; }
+    .side-body { flex: 1; overflow: auto; padding: 12px 16px 20px; }
+    .side-body [role="tabpanel"] { display: flex; flex-direction: column; gap: 8px; }
+    .side-body [role="tabpanel"][hidden] { display: none; }
+
+    .order, .person, .policy {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      text-align: left;
+      width: 100%;
+    }
+    .order > .order-top, .person, .policy > .policy-top { cursor: pointer; }
+    .order:hover, .person:hover, .policy:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+    .order.open { border-color: var(--accent); }
+    .order-top { display: block; width: 100%; border: 0; background: transparent; text-align: left; padding: 10px 12px; border-radius: 12px; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .row .grow { flex: 1; min-width: 0; }
+    .num { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .sub { font-size: 12.5px; color: var(--muted); }
+    .total { font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13.5px; }
+    .badge {
+      display: inline-flex; align-items: center;
+      font-size: 11.5px; font-weight: 600; text-transform: capitalize;
+      padding: 1px 8px; border-radius: 999px; white-space: nowrap;
+    }
+    .badge.placed { color: var(--s-placed); background: var(--s-placed-bg); }
+    .badge.packed { color: var(--s-packed); background: var(--s-packed-bg); }
+    .badge.shipped { color: var(--s-shipped); background: var(--s-shipped-bg); }
+    .badge.delivered { color: var(--s-delivered); background: var(--s-delivered-bg); }
+    .badge.cancelled { color: var(--s-cancelled); background: var(--s-cancelled-bg); }
+    .badge.late { color: var(--late); background: var(--late-bg); text-transform: none; }
+    .order-more { padding: 0 12px 12px; display: none; }
+    .order.open .order-more { display: block; }
+    .order-more .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .person { padding: 10px 12px; display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: grid; place-items: center; font-size: 12.5px; font-weight: 700;
+      background: var(--accent-soft); color: var(--accent); flex: none;
+    }
+    .policy-top { display: block; width: 100%; border: 0; background: transparent; text-align: left; padding: 10px 12px; border-radius: 12px; }
+    .policy-text { display: none; padding: 0 12px 12px; font-size: 13px; color: var(--muted); }
+    .policy.open .policy-text { display: block; }
+    .policy-text p { margin: 0 0 10px; }
+
+    /* ---------- Chat ---------- */
+    .chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+    .scroll { flex: 1; overflow: auto; }
+    .thread { width: min(780px, 100% - 32px); margin: 0 auto; padding: 28px 0 16px; display: flex; flex-direction: column; gap: 22px; }
+
+    .welcome { text-align: center; padding: 20px 0 0; }
+    .welcome .logo { width: 48px; height: 48px; border-radius: 14px; margin: 0 auto 14px; }
+    .welcome h2 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
+    .welcome > p { margin: 8px auto 0; color: var(--muted); max-width: 520px; }
+    .steps-strip {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      margin: 22px 0 26px; text-align: left;
+    }
+    .step-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 13px; color: var(--muted); }
+    .step-card b { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13.5px; margin-bottom: 2px; }
+    .step-card .n { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11.5px; background: var(--accent-soft); color: var(--accent); }
+    .groups { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; text-align: left; }
+    .group { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+    .group h3 { margin: 0 0 10px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+    .group h3 svg { color: var(--accent); }
+    .group .list { display: flex; flex-direction: column; gap: 6px; }
+    .q {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      width: 100%; text-align: left;
+      border: 1px solid var(--line); background: var(--panel-2);
+      border-radius: 9px; padding: 7px 10px; font-size: 13.5px; cursor: pointer;
+    }
+    .q:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .q svg { color: var(--faint); }
+
+    .msg { display: flex; gap: 12px; align-items: flex-start; }
+    .msg.you { justify-content: flex-end; }
+    .msg.you .bubble {
+      background: var(--you); color: var(--you-ink);
+      border-radius: 16px 16px 4px 16px;
+      padding: 9px 14px; max-width: min(520px, 85%);
+      white-space: pre-wrap;
+    }
+    .bot-avatar { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; margin-top: 2px; }
+    .bot-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+    .bot-name { font-size: 12.5px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+    .bot-name .copy { margin-left: auto; border: 0; background: transparent; color: var(--faint); cursor: pointer; padding: 2px 4px; border-radius: 6px; font-size: 12px; display: inline-flex; gap: 4px; align-items: center; }
+    .bot-name .copy:hover { color: var(--ink); background: var(--panel-2); }
+    .answer { background: var(--panel); border: 1px solid var(--line); border-radius: 4px 16px 16px 16px; padding: 12px 16px; box-shadow: var(--shadow); }
+    .answer p { margin: 0 0 10px; }
+    .answer p:last-child, .answer ul:last-child, .answer ol:last-child { margin-bottom: 0; }
+    .answer ul, .answer ol { margin: 0 0 10px; padding-left: 20px; }
+    .answer li { margin: 2px 0; }
+    .needs-human { background: var(--warn-soft); border-color: var(--warn-line); }
+    .human-note { display: flex; gap: 8px; align-items: flex-start; color: var(--warn); font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .error-bubble { background: var(--s-cancelled-bg); border-color: transparent; color: var(--s-cancelled); }
+
+    .section-label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint); margin-bottom: 6px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
+    .card .lines { margin: 8px 0 0; padding: 8px 0 0; border-top: 1px dashed var(--line); list-style: none; display: flex; flex-direction: column; gap: 3px; }
+    .card .lines li { display: flex; justify-content: space-between; gap: 8px; }
+    .card .lines li span:last-child { font-variant-numeric: tabular-nums; color: var(--muted); }
+    .card .dates { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; color: var(--muted); font-size: 12.5px; }
+    .show-more { border: 0; background: transparent; color: var(--accent); cursor: pointer; padding: 4px 0; font-size: 13px; font-weight: 600; }
+
+    .sources { display: flex; flex-wrap: wrap; gap: 6px; }
+    .source {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--line); background: var(--panel);
+      border-radius: 999px; padding: 4px 10px; font-size: 12.5px; cursor: pointer;
+    }
+    .source[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+    .excerpt { margin-top: 8px; border-left: 3px solid var(--accent); background: var(--panel); padding: 8px 12px; border-radius: 0 10px 10px 0; font-size: 13px; color: var(--muted); }
+    .excerpt strong { color: var(--ink); display: block; margin-bottom: 2px; }
+
+    details.trace { font-size: 12.5px; color: var(--muted); }
+    details.trace summary { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; list-style: none; user-select: none; }
+    details.trace summary::-webkit-details-marker { display: none; }
+    details.trace summary:hover { color: var(--ink); }
+    details.trace summary .chev { transition: transform 0.15s; }
+    details.trace[open] summary .chev { transform: rotate(90deg); }
+    .trace ol { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; border-left: 2px solid var(--line); margin-left: 6px; padding-left: 14px; }
+    .trace li b { color: var(--ink); font-weight: 600; }
+
+    .followups { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      border: 1px solid var(--line); background: var(--panel);
+      border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer;
+    }
+    .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .chip.small { padding: 3px 10px; font-size: 12.5px; }
+
+    .typing { display: inline-flex; gap: 10px; align-items: center; color: var(--muted); font-size: 13.5px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px 16px 16px 16px; padding: 10px 14px; }
+    .dots { display: inline-flex; gap: 4px; }
+    .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0.35; animation: blink 1.2s infinite; }
+    .dots i:nth-child(2) { animation-delay: 0.2s; }
+    .dots i:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+
+    /* ---------- Composer ---------- */
+    .composer-wrap { flex: none; padding: 10px 0 16px; background: linear-gradient(to bottom, transparent, var(--bg) 30%); }
+    .composer {
+      width: min(780px, 100% - 32px); margin: 0 auto;
+      display: flex; align-items: flex-end; gap: 8px;
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 16px; padding: 8px 8px 8px 14px;
+      box-shadow: var(--shadow);
+    }
+    .composer:focus-within { border-color: var(--accent); }
+    .composer textarea {
+      flex: 1; border: 0; outline: none; resize: none; background: transparent;
+      font: inherit; color: var(--ink); padding: 7px 0; max-height: 160px; min-height: 24px;
+    }
+    .send {
+      width: 38px; height: 38px; border-radius: 11px; border: 0;
+      background: var(--accent); color: var(--accent-ink);
+      display: grid; place-items: center; cursor: pointer; flex: none;
+    }
+    .send:disabled { opacity: 0.4; cursor: not-allowed; }
+    .hint { width: min(780px, 100% - 32px); margin: 6px auto 0; font-size: 12px; color: var(--faint); text-align: center; }
+    .memory {
+      width: min(780px, 100% - 32px); margin: 0 auto 8px;
+      display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted);
+    }
+    .memory[hidden] { display: none; }
+    .memory .pill {
+      display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+      background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 3px 4px 3px 10px; font-weight: 600;
+    }
+    .memory .pill span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .memory .pill button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 2px; border-radius: 50%; display: grid; place-items: center; opacity: 0.7; }
+    .memory .pill button:hover { opacity: 1; background: color-mix(in srgb, var(--accent) 15%, transparent); }
+    kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--panel); }
+
+    /* ---------- Dialog ---------- */
+    dialog {
+      border: 1px solid var(--line); border-radius: 16px; padding: 0;
+      width: min(560px, calc(100% - 32px)); background: var(--panel); color: var(--ink);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    dialog::backdrop { background: rgba(10, 16, 20, 0.45); }
+    .dlg-head { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+    .dlg-head h2 { margin: 0; font-size: 17px; flex: 1; }
+    .dlg-body { padding: 16px 20px 20px; font-size: 14px; }
+    .dlg-body h3 { font-size: 14px; margin: 16px 0 6px; }
+    .dlg-body h3:first-child { margin-top: 0; }
+    .dlg-body p, .dlg-body ul { margin: 0 0 8px; color: var(--muted); }
+    .dlg-body ul { padding-left: 18px; }
+    .icon-btn { border: 0; background: transparent; cursor: pointer; padding: 6px; border-radius: 8px; color: var(--muted); display: grid; place-items: center; }
+    .icon-btn:hover { background: var(--panel-2); color: var(--ink); }
+
+    /* ---------- Responsive ---------- */
+    .scrim { display: none; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .only-mobile { display: inline-flex !important; }
+      .hide-mobile { display: none; }
+      .sidebar {
+        position: fixed; inset: 0 auto 0 0; width: min(360px, 88vw); z-index: 30;
+        transform: translateX(-100%); transition: transform 0.2s ease;
+        box-shadow: var(--shadow);
+      }
+      body.drawer-open .sidebar { transform: none; }
+      body.drawer-open .scrim { display: block; position: fixed; inset: 0; background: rgba(10,16,20,0.4); z-index: 20; }
+      .topbar { padding: 10px 16px; }
+      .brand p { display: none; }
+      .brand h1 { font-size: 15px; }
+    }
+    @media (max-width: 600px) {
+      .groups { grid-template-columns: 1fr; }
+      .steps-strip { display: none; }
+      .welcome > p { margin-bottom: 18px; }
+      .brand .logo { display: none; }
+      .welcome h2 { font-size: 21px; }
+      .btn .label { display: none; }
+      .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Reusable icons -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol>
+    <symbol id="i-truck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></symbol>
+    <symbol id="i-refund" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v8M9.5 10.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.6c0 2.4-5 1.2-5 3.6 0 1 1 1.8 2.5 1.8s2.5-.6 2.5-1.5"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="i-brain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M12 5v13"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <button class="btn only-mobile" id="open-drawer" aria-label="Show store data">
+      <svg width="16" height="16"><use href="#i-db"/></svg><span class="label">Store data</span>
+    </button>
+    <div class="brand">
+      <div class="logo"><svg width="18" height="18"><use href="#i-bot"/></svg></div>
+      <div>
+        <h1>Store Support Assistant</h1>
+        <p>Ask about orders, shipping and refunds. Answers come only from the store's own data.</p>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <span class="mode" id="mode" title="Checking…"><span class="dot"></span><span id="mode-label">Connecting…</span></span>
+    <button class="btn hide-mobile" id="open-help"><svg width="15" height="15"><use href="#i-help"/></svg><span class="label">How it works</span></button>
+    <button class="btn" id="new-chat" aria-label="New chat"><svg width="15" height="15"><use href="#i-plus"/></svg><span class="label">New chat</span></button>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar" aria-label="Sample store data">
+      <div class="side-head">
+        <div class="row">
+          <h2 class="grow">Sample store data</h2>
+          <button class="icon-btn only-mobile" id="close-drawer" aria-label="Close"><svg width="18" height="18"><use href="#i-x"/></svg></button>
+        </div>
+        <p>This is everything the assistant can see. Click any item to ask about it.</p>
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" aria-selected="true" aria-controls="panel-orders" id="tab-orders">Orders <span class="count" id="count-orders"></span></button>
+          <button class="tab" role="tab" aria-selected="false" aria-controls="panel-customers" id="tab-customers">Customers <span class="count" id="count-customers"></span></button>
+          <button class="tab" role="tab" aria-selected="false" aria-controls="panel-policies" id="tab-policies">Policies <span class="count" id="count-policies"></span></button>
+        </div>
+      </div>
+      <div class="side-body">
+        <div role="tabpanel" id="panel-orders" aria-labelledby="tab-orders"></div>
+        <div role="tabpanel" id="panel-customers" aria-labelledby="tab-customers" hidden></div>
+        <div role="tabpanel" id="panel-policies" aria-labelledby="tab-policies" hidden></div>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+
+    <main class="chat">
+      <div class="scroll" id="scroll">
+        <div class="thread" id="thread" aria-live="polite"></div>
+      </div>
+      <div class="composer-wrap">
+        <div class="memory" id="memory" hidden title="Follow-up questions like “what did he order last?” refer to these records.">
+          <svg width="14" height="14"><use href="#i-brain"/></svg>
+          <span>Remembering</span>
+          <span class="pill"><span id="memory-text"></span><button type="button" id="memory-clear" aria-label="Forget and start fresh"><svg width="12" height="12"><use href="#i-x"/></svg></button></span>
+        </div>
+        <form class="composer" id="composer">
+          <label for="message" class="sr-only" style="position:absolute;left:-9999px">Your question</label>
+          <textarea id="message" rows="1" placeholder="Type your question…" autocomplete="off"></textarea>
+          <button class="send" id="send" type="submit" aria-label="Send" disabled><svg width="18" height="18"><use href="#i-send"/></svg></button>
+        </form>
+        <div class="hint"><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</div>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="help">
+    <div class="dlg-head">
+      <h2>How this assistant works</h2>
+      <button class="icon-btn" id="close-help" aria-label="Close"><svg width="18" height="18"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="dlg-body">
+      <h3>What it is</h3>
+      <p>A demo customer-support chatbot for a small online store. It answers questions about orders, shipping delays, refunds, customers and products.</p>
+      <h3>Where answers come from</h3>
+      <ul>
+        <li><b>Store records</b>: customers, products and orders (see the left panel).</li>
+        <li><b>Policies</b>: short support documents like the refund and shipping rules.</li>
+      </ul>
+      <p>It never makes things up. If it can't find the answer in either place, it says so and suggests contacting a person.</p>
+      <h3>Reading a reply</h3>
+      <ul>
+        <li><b>Order cards</b> show the records the answer used.</li>
+        <li><b>Sources</b> show which policy was quoted. Click one to read the passage.</li>
+        <li><b>How I found this</b> lists each lookup the assistant made.</li>
+      </ul>
+      <h3>Memory</h3>
+      <p>The assistant remembers the last few messages of this chat and the records you were discussing, so you can ask follow-ups like “what did he order last?” or “can I get a refund for it?”. The <b>Remembering</b> bar above the message box shows what it has in mind. <b>New chat</b> clears it.</p>
+      <h3>Two modes</h3>
+      <ul>
+        <li><b>AI mode</b> (when <code>OPENAI_API_KEY</code> is set): an OpenAI model decides which lookups to run and writes the reply.</li>
+        <li><b>Offline mode</b> (no key): simple keyword matching finds records and policies, and the reply is built from templates.</li>
+      </ul>
+    </div>
+  </dialog>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const thread = $("#thread");
+    const scroller = $("#scroll");
+    const input = $("#message");
+    const sendBtn = $("#send");
+    let busy = false;
+    let conversationId = null;  // the server keeps this conversation's memory under this id
+    let examples = [];
+    let documentsByName = {};
+
+    // ---------- helpers ----------
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const icon = (id, size = 16) => `<svg width="${size}" height="${size}"><use href="#${id}"/></svg>`;
+    const money = (cents) => "$" + (cents / 100).toFixed(2);
+    const parseDay = (iso) => { if (!iso) return null; const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+    const fmtDay = (iso) => { const d = parseDay(iso); return d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—"; };
+    const today = () => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); };
+    const orderTotal = (o) => o.lines.reduce((sum, l) => sum + l.quantity * l.unit_price_cents, 0);
+    const isLate = (o) => !o.delivered_on && o.status !== "cancelled" && o.promised_on && parseDay(o.promised_on) < today();
+    const initials = (name) => name.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+    const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+
+    function statusBadges(o) {
+      let html = `<span class="badge ${esc(o.status)}">${esc(o.status)}</span>`;
+      if (isLate(o)) html += ` <span class="badge late" title="Past the promised delivery date">Late</span>`;
+      return html;
+    }
+
+    // Tiny, safe markdown: paragraphs, **bold**, bullet & numbered lists.
+    function renderMarkdown(text) {
+      const blocks = esc(text).split(/\n{2,}/);
+      return blocks.map((block) => {
+        const lines = block.split("\n");
+        let out = "", list = null;
+        const inline = (s) => s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^#{1,4}\s*(.+)$/, "<strong>$1</strong>");
+        const flush = () => { if (list) { out += `</${list}>`; list = null; } };
+        let para = [];
+        const flushPara = () => { if (para.length) { out += `<p>${para.map(inline).join("<br>")}</p>`; para = []; } };
+        for (const line of lines) {
+          const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
+          const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+          if (bullet || numbered) {
+            flushPara();
+            const kind = bullet ? "ul" : "ol";
+            if (list !== kind) { flush(); out += `<${kind}>`; list = kind; }
+            out += `<li>${inline((bullet || numbered)[1])}</li>`;
+          } else {
+            flush();
+            para.push(line);
+          }
+        }
+        flushPara(); flush();
+        return out;
+      }).join("");
+    }
+
+    function scrollToBottom() { scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" }); }
+
+    // ---------- welcome ----------
+    const GROUP_ICONS = { "Orders": "i-box", "Shipping": "i-truck", "Refunds": "i-refund", "Customers & products": "i-users" };
+
+    function renderWelcome() {
+      thread.innerHTML = "";
+      scroller.scrollTop = 0;
+      const groups = {};
+      for (const ex of examples) (groups[ex.group || "Try asking"] ||= []).push(ex);
+      const groupHtml = Object.entries(groups).map(([name, items]) => `
+        <div class="group">
+          <h3>${icon(GROUP_ICONS[name] || "i-search")} ${esc(name)}</h3>
+          <div class="list">
+            ${items.map((ex, i) => `<button class="q" data-group="${esc(name)}" data-i="${i}"><span>${esc(ex.label)}</span>${icon("i-arrow", 14)}</button>`).join("")}
+          </div>
+        </div>`).join("");
+      const node = el(`
+        <section class="welcome">
+          <div class="logo">${icon("i-bot", 24)}</div>
+          <h2>Hi! How can I help today?</h2>
+          <p>I'm a support assistant for a sample online store. Ask me about an order, a delivery or a refund. If I can't find the answer in the store's records, I'll tell you instead of guessing.</p>
+          <div class="steps-strip">
+            <div class="step-card"><b><span class="n">1</span>You ask</b>Type a question or pick one below.</div>
+            <div class="step-card"><b><span class="n">2</span>I look it up</b>I check the store's orders and policies.</div>
+            <div class="step-card"><b><span class="n">3</span>You get an answer</b>With the records and policy it's based on.</div>
+          </div>
+          <div class="groups">${groupHtml}</div>
+        </section>`);
+      node.querySelectorAll(".q").forEach((btn) => {
+        btn.addEventListener("click", () => ask(groups[btn.dataset.group][Number(btn.dataset.i)].message));
+      });
+      thread.append(node);
+    }
+
+    // ---------- messages ----------
+    function addUser(text) {
+      $(".welcome")?.remove();
+      const node = el(`<div class="msg you"><div class="bubble"></div></div>`);
+      node.querySelector(".bubble").textContent = text;
+      thread.append(node);
+      scrollToBottom();
+    }
+
+    function addTyping() {
+      const node = el(`<div class="msg bot"><div class="bot-avatar">${icon("i-bot", 16)}</div>
+        <div class="typing"><span class="dots"><i></i><i></i><i></i></span><span>Looking up the store's records…</span></div></div>`);
+      thread.append(node);
+      scrollToBottom();
+      return node;
+    }
+
+    function orderCard(o) {
+      const who = o.customer ? `${esc(o.customer.name)} · ${esc(o.customer.city)}` : "Unknown customer";
+      const dates = [`<span>Placed ${fmtDay(o.placed_on)}</span>`];
+      if (o.delivered_on) dates.push(`<span>Delivered ${fmtDay(o.delivered_on)}</span>`);
+      else if (o.promised_on && o.status !== "cancelled") dates.push(`<span>Due ${fmtDay(o.promised_on)}</span>`);
+      return `
+        <div class="card">
+          <div class="row"><span class="num">Order #${esc(o.number)}</span><span class="grow"></span>${statusBadges(o)}</div>
+          <div class="sub">${who}</div>
+          <div class="dates">${dates.join("")}</div>
+          <ul class="lines">
+            ${o.lines.map((l) => `<li><span>${l.quantity} × ${esc(l.name)}</span><span>${money(l.unit_price_cents * l.quantity)}</span></li>`).join("")}
+            <li><b>Total</b><b>${money(orderTotal(o))}</b></li>
+          </ul>
+        </div>`;
+    }
+
+    function addReply(body) {
+      const orders = body.orders || [];
+      const citations = body.citations || [];
+      const steps = body.steps || [];
+      const human = body.escalation;
+      const node = el(`
+        <div class="msg bot">
+          <div class="bot-avatar">${icon("i-bot", 16)}</div>
+          <div class="bot-body">
+            <div class="bot-name">Support assistant
+              <button class="copy" title="Copy reply">${icon("i-copy", 13)} Copy</button>
+            </div>
+            <div class="answer ${human ? "needs-human" : ""}">
+              ${human ? `<div class="human-note">${icon("i-alert", 15)} Not found in the store's records or policies</div>` : ""}
+              <div class="md"></div>
+            </div>
+          </div>
+        </div>`);
+      const bodyEl = node.querySelector(".bot-body");
+      node.querySelector(".md").innerHTML = renderMarkdown(body.reply);
+      node.querySelector(".copy").addEventListener("click", (e) => {
+        navigator.clipboard?.writeText(body.reply);
+        e.currentTarget.innerHTML = `${icon("i-copy", 13)} Copied`;
+      });
+
+      // Order cards
+      if (orders.length) {
+        const LIMIT = 2;
+        const wrap = el(`<div><div class="section-label">${orders.length === 1 ? "Order used" : `Orders used (${orders.length})`}</div><div class="cards"></div></div>`);
+        const cards = wrap.querySelector(".cards");
+        orders.forEach((o, i) => { const c = el(orderCard(o)); if (i >= LIMIT) c.hidden = true; cards.append(c); });
+        if (orders.length > LIMIT) {
+          const more = el(`<button class="show-more">Show ${orders.length - LIMIT} more</button>`);
+          more.addEventListener("click", () => { cards.querySelectorAll(".card[hidden]").forEach((c) => (c.hidden = false)); more.remove(); });
+          wrap.append(more);
+        }
+        bodyEl.append(wrap);
+      }
+
+      // Sources (policy citations)
+      if (citations.length) {
+        const byDoc = {};
+        for (const c of citations) (byDoc[c.document] ||= []).push(c.excerpt);
+        const wrap = el(`<div><div class="section-label">Sources</div><div class="sources"></div><div class="excerpt-host"></div></div>`);
+        const host = wrap.querySelector(".excerpt-host");
+        for (const [doc, excerpts] of Object.entries(byDoc)) {
+          const title = documentsByName[doc]?.title || doc;
+          const btn = el(`<button class="source" aria-expanded="false">${icon("i-doc", 13)} ${esc(title)}</button>`);
+          btn.addEventListener("click", () => {
+            const open = btn.getAttribute("aria-expanded") === "true";
+            wrap.querySelectorAll(".source").forEach((b) => b.setAttribute("aria-expanded", "false"));
+            host.innerHTML = "";
+            if (!open) {
+              btn.setAttribute("aria-expanded", "true");
+              const text = excerpts.join("\n\n").replace(/^#.*\n+/gm, "");
+              host.innerHTML = `<div class="excerpt"><strong>${esc(title)} <span class="sub">(${esc(doc)})</span></strong>${esc(text)}</div>`;
+            }
+          });
+          wrap.querySelector(".sources").append(btn);
+        }
+        bodyEl.append(wrap);
+      }
+
+      // Trace of lookups
+      if (steps.length) {
+        const trace = el(`<details class="trace"><summary>${icon("i-chev", 12).replace("<svg", '<svg class="chev"')} How I found this (${steps.length} ${steps.length === 1 ? "step" : "steps"})</summary><ol></ol></details>`);
+        trace.querySelector("ol").innerHTML = steps.map((s) => `<li><b>${esc(s.label)}</b> — ${esc(s.detail)}</li>`).join("");
+        bodyEl.append(trace);
+      }
+
+      // Follow-up suggestions
+      const focus = body.order || (orders.length === 1 ? orders[0] : null);
+      const follow = [];
+      if (focus) {
+        const n = focus.number;
+        if (focus.status !== "cancelled" && !focus.delivered_on) follow.push(`Is order ${n} delayed?`);
+        if (focus.status !== "cancelled") follow.push(`Can I get a refund for order ${n}?`);
+        follow.push(`What is in order ${n}?`);
+      } else if (human) {
+        follow.push("What is the refund policy?", "Show me all orders");
+      }
+      const lastQ = body._question?.toLowerCase();
+      const chips = follow.filter((q) => q.toLowerCase() !== lastQ).slice(0, 3);
+      if (chips.length) {
+        const wrap = el(`<div class="followups"></div>`);
+        for (const q of chips) {
+          const c = el(`<button class="chip small"></button>`);
+          c.textContent = q;
+          c.addEventListener("click", () => ask(q));
+          wrap.append(c);
+        }
+        bodyEl.append(wrap);
+      }
+
+      thread.append(node);
+      scrollToBottom();
+    }
+
+    function addError(text) {
+      const node = el(`<div class="msg bot"><div class="bot-avatar">${icon("i-bot", 16)}</div>
+        <div class="bot-body"><div class="answer error-bubble"></div></div></div>`);
+      node.querySelector(".answer").textContent = text;
+      thread.append(node);
+      scrollToBottom();
+    }
+
+    // ---------- sending ----------
+    function setBusy(value) {
+      busy = value;
+      sendBtn.disabled = value || !input.value.trim();
+      document.querySelectorAll(".q, .chip, .order-more .chip").forEach((b) => (b.disabled = value));
+    }
+
+    async function ask(message) {
+      message = message.trim();
+      if (!message || busy) return;
+      closeDrawer();
+      addUser(message);
+      input.value = "";
+      autosize();
+      const typing = addTyping();
+      setBusy(true);
+      try {
+        const response = await fetch("/messages", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message, conversation_id: conversationId }),
+        });
+        const body = await response.json().catch(() => ({}));
+        typing.remove();
+        if (!response.ok) {
+          addError(body.detail || "Sorry, something went wrong while answering. Please try again.");
+        } else {
+          body._question = message;
+          conversationId = body.conversation_id || conversationId;
+          showMemory(body.remembering);
+          addReply(body);
+        }
+      } catch (err) {
+        typing.remove();
+        addError("I couldn't reach the server. Make sure it is running, then try again.");
+      } finally {
+        setBusy(false);
+        input.focus();
+      }
+    }
+
+    function autosize() {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 160) + "px";
+      sendBtn.disabled = busy || !input.value.trim();
+    }
+
+    $("#composer").addEventListener("submit", (e) => { e.preventDefault(); ask(input.value); });
+    input.addEventListener("input", autosize);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(input.value); }
+    });
+    function showMemory(note) {
+      $("#memory").hidden = !note;
+      $("#memory-text").textContent = note || "";
+    }
+
+    function startOver() {
+      if (busy) return;
+      if (conversationId) fetch(`/conversations/${conversationId}`, { method: "DELETE" }).catch(() => {});
+      conversationId = null;
+      showMemory("");
+      renderWelcome();
+      input.focus();
+    }
+
+    $("#new-chat").addEventListener("click", startOver);
+    $("#memory-clear").addEventListener("click", startOver);
+
+    // ---------- sidebar ----------
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((t) => {
+          const on = t === tab;
+          t.setAttribute("aria-selected", String(on));
+          document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+        });
+      });
+    });
+
+    function renderOrders(orders) {
+      const panel = $("#panel-orders");
+      $("#count-orders").textContent = orders.length;
+      panel.innerHTML = "";
+      for (const o of [...orders].sort((a, b) => b.placed_on.localeCompare(a.placed_on))) {
+        const items = o.lines.map((l) => `${l.quantity} × ${l.name}`).join(", ");
+        const node = el(`
+          <div class="order">
+            <button class="order-top" aria-expanded="false">
+              <div class="row"><span class="num">#${esc(o.number)}</span>${statusBadges(o)}<span class="grow"></span><span class="total">${money(orderTotal(o))}</span></div>
+              <div class="sub">${o.customer ? esc(o.customer.name) : "—"} · placed ${fmtDay(o.placed_on)}</div>
+            </button>
+            <div class="order-more">
+              <div class="sub">${esc(items)}</div>
+              <div class="sub">${o.delivered_on ? `Delivered ${fmtDay(o.delivered_on)}` : o.status === "cancelled" ? "Cancelled" : `Promised by ${fmtDay(o.promised_on)}`}</div>
+              <div class="actions"></div>
+            </div>
+          </div>`);
+        const top = node.querySelector(".order-top");
+        top.addEventListener("click", () => {
+          const open = !node.classList.contains("open");
+          panel.querySelectorAll(".order.open").forEach((n) => { n.classList.remove("open"); n.querySelector(".order-top").setAttribute("aria-expanded", "false"); });
+          node.classList.toggle("open", open);
+          top.setAttribute("aria-expanded", String(open));
+        });
+        const actions = [[`What's in it?`, `What is in order ${o.number}?`]];
+        if (o.status !== "cancelled" && !o.delivered_on) actions.push([`Is it late?`, `Is order ${o.number} delayed?`]);
+        actions.push([`Refund?`, `Can I get a refund for order ${o.number}?`]);
+        for (const [label, q] of actions) {
+          const c = el(`<button class="chip small"></button>`);
+          c.textContent = label;
+          c.title = q;
+          c.addEventListener("click", () => ask(q));
+          node.querySelector(".actions").append(c);
+        }
+        panel.append(node);
+      }
+
+      // Customers derived from orders
+      const people = {};
+      for (const o of orders) {
+        if (!o.customer) continue;
+        const p = (people[o.customer.name] ||= { ...o.customer, orders: [] });
+        p.orders.push(o.number);
+      }
+      const list = Object.values(people).sort((a, b) => a.name.localeCompare(b.name));
+      $("#count-customers").textContent = list.length;
+      const cpanel = $("#panel-customers");
+      cpanel.innerHTML = "";
+      for (const p of list) {
+        const node = el(`
+          <button class="person" title="Ask what ${esc(p.name)} ordered">
+            <span class="avatar">${esc(initials(p.name))}</span>
+            <span class="grow" style="min-width:0">
+              <div><b>${esc(p.name)}</b></div>
+              <div class="sub">${esc(p.city)} · ${p.orders.length} ${p.orders.length === 1 ? "order" : "orders"}</div>
+            </span>
+            ${icon("i-arrow", 14)}
+          </button>`);
+        node.addEventListener("click", () => ask(`What did ${p.name} order?`));
+        cpanel.append(node);
+      }
+    }
+
+    function renderPolicies(docs) {
+      const panel = $("#panel-policies");
+      $("#count-policies").textContent = docs.length;
+      panel.innerHTML = "";
+      for (const d of docs) {
+        documentsByName[d.name] = d;
+        const text = d.text.replace(/^#.*\n+/m, "");
+        const node = el(`
+          <div class="policy">
+            <button class="policy-top" aria-expanded="false">
+              <div class="row">${icon("i-doc", 15)}<b class="grow">${esc(d.title)}</b>${icon("i-chev", 14)}</div>
+              <div class="sub">${esc(d.name)}</div>
+            </button>
+            <div class="policy-text"><p></p></div>
+          </div>`);
+        node.querySelector(".policy-text p").textContent = text;
+        const btn = el(`<button class="chip small">Ask about this</button>`);
+        btn.addEventListener("click", () => ask(`What is the ${d.title.toLowerCase()} policy?`));
+        node.querySelector(".policy-text").append(btn);
+        node.querySelector(".policy-top").addEventListener("click", (e) => {
+          const open = node.classList.toggle("open");
+          e.currentTarget.setAttribute("aria-expanded", String(open));
+        });
+        panel.append(node);
+      }
+    }
+
+    // ---------- drawer (mobile) & dialog ----------
+    function closeDrawer() { document.body.classList.remove("drawer-open"); }
+    $("#open-drawer").addEventListener("click", () => document.body.classList.add("drawer-open"));
+    $("#close-drawer").addEventListener("click", closeDrawer);
+    $("#scrim").addEventListener("click", closeDrawer);
+    $("#open-help").addEventListener("click", () => $("#help").showModal());
+    $("#close-help").addEventListener("click", () => $("#help").close());
+    $("#help").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+
+    // ---------- boot ----------
+    async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error(url); return r.json(); }
+
+    getJSON("/status").then((s) => {
+      const mode = $("#mode");
+      if (s.mode === "ai") {
+        mode.classList.add("ai");
+        $("#mode-label").textContent = "AI mode";
+        mode.title = `Using ${s.model || "an OpenAI model"}. The model chooses which store lookups to run, then writes the reply from what they return.`;
+      } else {
+        $("#mode-label").textContent = "Offline mode";
+        mode.title = "No OpenAI key is set. Answers come from keyword matching over the store's records and policies. Add OPENAI_API_KEY to .env and restart for AI mode.";
+      }
+    }).catch(() => { $("#mode-label").textContent = "Server offline"; });
+
+    Promise.allSettled([getJSON("/examples"), getJSON("/orders"), getJSON("/documents")]).then(([ex, ord, docs]) => {
+      if (docs.status === "fulfilled") renderPolicies(docs.value.documents);
+      if (ord.status === "fulfilled") renderOrders(ord.value.orders);
+      if (ex.status === "fulfilled") examples = ex.value.examples;
+      if (!thread.children.length || $(".welcome")) renderWelcome();
+    });
+    renderWelcome();
+    input.focus();
+  </script>
+</body>
+</html>
